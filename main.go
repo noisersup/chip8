@@ -1,6 +1,19 @@
 package main
 
-import "log"
+import (
+	"log"
+	"runtime"
+
+	"github.com/noisersup/chip8/display"
+)
+
+var (
+	triangle = []float32{
+		0, 0.5, 0, // top
+		-0.5, -0.5, 0, // left
+		0.5, -0.5, 0, // right
+	}
+)
 
 func main() {
 	var tab [4096]uint8
@@ -8,6 +21,13 @@ func main() {
 	tab[1] = 112
 	ch8 := Chip8{pc: 0, memory: tab}
 	ch8.fetchOpcode()
+
+	runtime.LockOSThread()
+	screen := display.InitScreen(600, 600, "aaa")
+
+	for !screen.ShouldClose() {
+		screen.Draw(display.MakeVao(triangle))
+	}
 }
 
 type Chip8 struct {
