@@ -54,9 +54,9 @@ type Chip8 struct {
 	delayTimer uint8
 	soundTimer uint8
 
-	stack [16]uint8
+	stack [16]uint16
 	// Stack pointer
-	sp uint8
+	sp uint16
 
 	// Keypad
 	key [16]uint8
@@ -124,28 +124,77 @@ func (ch8 *Chip8) decodeOpcode() {
 		}
 		break
 
-	case 0x1000:
+	case 0x1000: // 0x1NNN: Jumps to address NNN
+		ch8.pc = ch8.opcode & 0x0FFF
 		break
 
-	case 0x2000:
+	case 0x2000: // 0x2NNN: Calls subroutine at NNN
+		ch8.stack[ch8.sp] = ch8.pc
+		ch8.sp++
+		ch8.pc = ch8.opcode & 0x0FFF
 		break
 
-	case 0x3000:
+	case 0x3000: // 0x3XNN: Skips the next instruction if VX == NN
+		if ch8.V[ch8.opcode&0x0F00] == uint8(ch8.opcode&0x00FF) {
+			ch8.pc += 2
+		}
 		break
 
-	case 0x4000:
+	case 0x4000: // 0x4XNN: Skips the next instruction if VX != NN
+		if ch8.V[ch8.opcode&0x0F00] != uint8(ch8.opcode&0x00FF) {
+			ch8.pc += 2
+		}
 		break
 
-	case 0x5000:
+	case 0x5000: // 0x5XY0: Skips the next instruction if VX == VY
+		if ch8.V[ch8.opcode&0x0F00] == ch8.V[ch8.opcode&0x00F0] {
+			ch8.pc += 2
+		}
 		break
 
-	case 0x6000:
+	case 0x6000: // 0x6XNN: Loads NN into VX
+		ch8.V[ch8.opcode&0x0F00] = uint8(ch8.opcode & 0x00FF)
 		break
 
-	case 0x7000:
+	case 0x7000: // 0x6XNN: VX = VX + NN
+
 		break
 
 	case 0x8000:
+		vx := ch8.opcode & 0x0F00
+		vy := ch8.opcode & 0x00F0
+
+		switch ch8.opcode & 0x000F {
+		case 0x0000: // 0x8XY0: Copy the value of VY to VX
+			ch8.V[vx] = ch8.V[vy]
+			break
+		case 0x0001: // 0x8XY1: VX = VX OR VY
+			ch8.V[vx] = ch8.V[vx] | ch8.V[vy]
+			break
+		case 0x0002: // 0x8XY2: VX = VX AND VY
+			ch8.V[vx] = ch8.V[vx] & ch8.V[vy]
+			break
+		case 0x0003: // 0x8XY3: VX = VX XOR VY
+			ch8.V[vx] = ch8.V[vx] ^ ch8.V[vy]
+			break
+		case 0x0004: // 0x8XY4: VX = VX ADD VY
+			ch8.V[vx] = ch8.V[vx] + ch8.V[vy]
+			break
+		case 0x0005: // 0x8XY5: VX = VX SUB VY
+			ch8.V[vx] = ch8.V[vx] - ch8.V[vy]
+			break
+		case 0x0006: // 0x8XY6: VX = VX >> VY
+			ch8.V[vx] = ch8.V[vx] >> ch8.V[vy]
+			break
+		case 0x0007: // 0x8XY7: VX = VY SUB VX
+			ch8.V[vx] = ch8.V[vy] + ch8.V[vx]
+			break
+		case 0x000E: // 0x8XYE: VX = VX << VY
+			ch8.V[vx] = ch8.V[vx] << ch8.V[vy]
+			break
+		default:
+			log.Printf("Unknown opcode [0x8000]: 0x%X\n", ch8.opcode)
+		}
 		break
 
 	case 0x9000:
@@ -157,5 +206,4 @@ func (ch8 *Chip8) decodeOpcode() {
 	case 0xD000: // Draw a sprite
 		break
 	}
-
 }
