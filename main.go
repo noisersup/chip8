@@ -2,9 +2,6 @@ package main
 
 import (
 	"log"
-	"runtime"
-
-	"github.com/noisersup/chip8/display"
 )
 
 var (
@@ -26,12 +23,12 @@ func main() {
 	ch8 := Chip8{pc: 0, memory: tab}
 	ch8.fetchOpcode()
 
-	runtime.LockOSThread()
-	screen := display.InitScreen(600, 600, "aaa")
-
-	for !screen.ShouldClose() {
-		screen.Draw(display.MakeVao(square))
-	}
+	//runtime.LockOSThread()
+	//screen := display.InitScreen(640, 320, 64, 32, "aaa")
+	//
+	//for !screen.ShouldClose() {
+	//	screen.Draw()
+	//}
 }
 
 type Chip8 struct {

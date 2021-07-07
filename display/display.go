@@ -23,6 +23,7 @@ var fragmentShaderSource = `
         frag_colour = vec4(1, 1, 1, 1);
     }
 ` + "\x00"
+
 var (
 	square = []float32{
 		-0.5, 0.5, 0, // top
@@ -38,12 +39,16 @@ var (
 type Screen struct {
 	window  *glfw.Window
 	program uint32
+
+	rows    int
+	columns int
+	cells   [][]*cell
 }
 
 func (s *Screen) ShouldClose() bool {
 	return s.window.ShouldClose()
 }
-func InitScreen(width, height int, name string) *Screen {
+func InitScreen(width, height, columns, rows int, name string) *Screen {
 	if err := glfw.Init(); err != nil {
 		panic(err)
 	}
@@ -63,7 +68,7 @@ func InitScreen(width, height int, name string) *Screen {
 
 	program := initOpenGL()
 
-	return &Screen{win, program}
+	return &Screen{win, program, rows, columns, MakeCells(rows, columns)}
 }
 
 func initOpenGL() uint32 {
@@ -87,13 +92,15 @@ func initOpenGL() uint32 {
 	return prog
 }
 
-func (s *Screen) Draw(vao uint32) {
+func (s *Screen) Draw() {
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 	gl.UseProgram(s.program)
 
-	gl.BindVertexArray(vao)
-	gl.DrawArrays(gl.TRIANGLES, 0, int32(len(square)/3))
-
+	for x := range s.cells {
+		for _, c := range s.cells[x] {
+			c.draw()
+		}
+	}
 	glfw.PollEvents()
 	s.window.SwapBuffers()
 }
