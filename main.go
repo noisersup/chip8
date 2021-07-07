@@ -8,9 +8,13 @@ import (
 )
 
 var (
-	triangle = []float32{
-		0, 0.5, 0, // top
+	square = []float32{
+		-0.5, 0.5, 0, // top
 		-0.5, -0.5, 0, // left
+		0.5, -0.5, 0, // right
+
+		-0.5, 0.5, 0, // top
+		0.5, 0.5, 0, // left
 		0.5, -0.5, 0, // right
 	}
 )
@@ -26,7 +30,7 @@ func main() {
 	screen := display.InitScreen(600, 600, "aaa")
 
 	for !screen.ShouldClose() {
-		screen.Draw(display.MakeVao(triangle))
+		screen.Draw(display.MakeVao(square))
 	}
 }
 
