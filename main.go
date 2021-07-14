@@ -2,6 +2,8 @@ package main
 
 import (
 	"log"
+	"math/rand"
+	"time"
 )
 
 var (
@@ -39,7 +41,7 @@ type Chip8 struct {
 	V [16]uint8
 
 	//Index register
-	I uint8
+	I uint16
 
 	//Program counter
 	pc uint16
@@ -56,7 +58,7 @@ type Chip8 struct {
 	sp uint16
 
 	// Keypad
-	key [16]uint8
+	keys [16]uint8
 }
 
 func (ch8 *Chip8) Initialize(chip8Fontset []uint8) {
@@ -64,7 +66,7 @@ func (ch8 *Chip8) Initialize(chip8Fontset []uint8) {
 	ch8.opcode = 0 //Reset opcode
 	ch8.I = 0      //Reset index register
 	ch8.sp = 0     //Reset stack pointer
-
+	rand.Seed(time.Now().UTC().UnixNano())
 	/*TODO:
 	- clear display
 	- clear stack
@@ -114,7 +116,7 @@ func (ch8 *Chip8) decodeOpcode() {
 			//TODO
 			break
 		case 0x000E: // 0x00EE: Returns from subroutine
-			//TODO
+			ch8.pc = ch8.stack[ch8.sp]
 			break
 		default:
 			log.Printf("Unknown opcode [0x0000]: 0x%X\n", ch8.opcode)
@@ -153,8 +155,8 @@ func (ch8 *Chip8) decodeOpcode() {
 		ch8.V[ch8.opcode&0x0F00] = uint8(ch8.opcode & 0x00FF)
 		break
 
-	case 0x7000: // 0x6XNN: VX = VX + NN
-
+	case 0x7000: // 0x7XNN: VX = VX + NN
+		ch8.V[ch8.opcode&0x0F00] = ch8.V[ch8.opcode&0x0F00] + uint8(ch8.opcode&0x00FF)
 		break
 
 	case 0x8000:
@@ -165,42 +167,143 @@ func (ch8 *Chip8) decodeOpcode() {
 		case 0x0000: // 0x8XY0: Copy the value of VY to VX
 			ch8.V[vx] = ch8.V[vy]
 			break
+
 		case 0x0001: // 0x8XY1: VX = VX OR VY
 			ch8.V[vx] = ch8.V[vx] | ch8.V[vy]
 			break
+
 		case 0x0002: // 0x8XY2: VX = VX AND VY
 			ch8.V[vx] = ch8.V[vx] & ch8.V[vy]
 			break
+
 		case 0x0003: // 0x8XY3: VX = VX XOR VY
 			ch8.V[vx] = ch8.V[vx] ^ ch8.V[vy]
 			break
+
 		case 0x0004: // 0x8XY4: VX = VX ADD VY
-			ch8.V[vx] = ch8.V[vx] + ch8.V[vy]
+			sum := ch8.V[vx] + ch8.V[vy]
+			if sum > 0xFF {
+				ch8.V[0xF] = 1
+			} else {
+				ch8.V[0xF] = 0
+			}
+
+			ch8.V[vx] = sum
 			break
+
 		case 0x0005: // 0x8XY5: VX = VX SUB VY
+			if ch8.V[vx] > ch8.V[vy] {
+				ch8.V[0xF] = 1
+			} else {
+				ch8.V[0xF] = 0
+			}
 			ch8.V[vx] = ch8.V[vx] - ch8.V[vy]
 			break
+
 		case 0x0006: // 0x8XY6: VX = VX >> VY
 			ch8.V[vx] = ch8.V[vx] >> ch8.V[vy]
 			break
+
 		case 0x0007: // 0x8XY7: VX = VY SUB VX
-			ch8.V[vx] = ch8.V[vy] + ch8.V[vx]
+			if ch8.V[vy] > ch8.V[vx] {
+				ch8.V[0xF] = 1
+			} else {
+				ch8.V[0xF] = 0
+			}
+			ch8.V[vx] = ch8.V[vy] - ch8.V[vx]
 			break
+
 		case 0x000E: // 0x8XYE: VX = VX << VY
 			ch8.V[vx] = ch8.V[vx] << ch8.V[vy]
 			break
+
 		default:
 			log.Printf("Unknown opcode [0x8000]: 0x%X\n", ch8.opcode)
 		}
 		break
 
-	case 0x9000:
+	case 0x9000: // 0x9XY0: Skips the instruction if VX != VY
+		if ch8.V[ch8.opcode&0x0F00] != ch8.V[ch8.opcode&0x00F0] {
+			ch8.pc += 2
+		}
 		break
 
-	case 0xA000:
+	case 0xA000: // 0xANNN: Sets the value of I to NNN
+		ch8.I = ch8.opcode & 0x0FFF
+		break
+
+	case 0xB000: // 0xBNNN: Jumps to the address NNN + V0
+		ch8.pc = ch8.opcode&0x0FFF + uint16(ch8.V[0])
+		break
+
+	case 0xC000: // 0xCXNN: sets VX to AND operation with random number and NN
+		ch8.V[ch8.opcode&0x0F00] = uint8(ch8.opcode&0x00FF) & uint8(rand.Intn(256))
 		break
 
 	case 0xD000: // Draw a sprite
+		//TODO
+		break
+	case 0xE000:
+		switch ch8.opcode & 0x000F {
+		case 0x000E: // 0xEX9E: Skips next instruction if key stored in VX is pressed
+			if ch8.keys[ch8.V[ch8.opcode&0x0F00]] == 1 {
+				ch8.pc += 2
+			}
+			break
+
+		case 0x0001: // 0xEXA1: Skips next instruction if key stored in VX is not pressed
+			if ch8.keys[ch8.V[ch8.opcode&0x0F00]] == 0 {
+				ch8.pc += 2
+			}
+			break
+		}
+		break
+	case 0xF000:
+		vx := ch8.opcode & 0x0F00
+
+		switch ch8.opcode & 0x00FF {
+		case 0x0007: // 0xFX07: Read delay timer into VX
+			ch8.V[vx] = ch8.delayTimer
+			break
+		case 0x000A: // 0xFX0A: Wait for a key press and store into VX
+			//TODO
+			break
+
+		case 0x0015: // 0xFX15: Load VX to delay timer
+			ch8.delayTimer = ch8.V[vx]
+			break
+
+		case 0x0018: // 0xFX18: Load VX to sound timer
+			ch8.soundTimer = ch8.V[vx]
+			break
+
+		case 0x001E: // 0xFX1E: Adds VX to I
+			ch8.I += uint16(ch8.V[vx])
+			break
+
+		case 0x0029: // 0xFX29: Set I to the location of sprite in VX
+			ch8.I = uint16(ch8.V[vx] * 0x05)
+			break
+
+		case 0x0033: // 0xFX33: Stores BCD representation of VX
+			hundreds := vx / 100
+			tens := (vx - hundreds*100) / 10
+			ones := vx - hundreds*100 - tens*10
+			ch8.memory[ch8.I] = uint8(hundreds)
+			ch8.memory[ch8.I+1] = uint8(tens)
+			ch8.memory[ch8.I+2] = uint8(ones)
+
+		case 0x0055: // 0xFX55: Stores V0 to VX in memory starting at I without modifing I.
+			for i, register := range ch8.V {
+				ch8.memory[ch8.I+uint16(i)] = register
+			}
+			break
+		case 0x0065: // 0xFX65: Loads to V0 to VX from memory starting at I without modifing I.
+			for i := range ch8.V {
+				ch8.V[i] = ch8.memory[ch8.I+uint16(i)]
+			}
+			break
+		}
 		break
 	}
 }
