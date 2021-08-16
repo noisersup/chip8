@@ -92,13 +92,15 @@ func initOpenGL() uint32 {
 	return prog
 }
 
-func (s *Screen) Draw() {
+func (s *Screen) Draw(gfx []uint8) {
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 	gl.UseProgram(s.program)
 
 	for x := range s.cells {
-		for _, c := range s.cells[x] {
-			c.draw()
+		for i, c := range s.cells[x] {
+			if gfx[i*60+x] != 0 {
+				c.draw()
+			}
 		}
 	}
 	glfw.PollEvents()

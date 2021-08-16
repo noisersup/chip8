@@ -1,9 +1,15 @@
 package main
 
 import (
+	"fmt"
+	"io/ioutil"
 	"log"
 	"math/rand"
+	"os"
+	"runtime"
 	"time"
+
+	"github.com/noisersup/chip8/display"
 )
 
 var (
@@ -16,24 +22,60 @@ var (
 		0.5, 0.5, 0, // left
 		0.5, -0.5, 0, // right
 	}
+	fontset = []uint8{
+		0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+		0x20, 0x60, 0x20, 0x20, 0x70, // 1
+		0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+		0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+		0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+		0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+		0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+		0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+		0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+		0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+		0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+		0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+		0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+		0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+		0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+		0xF0, 0x80, 0xF0, 0x80, 0x81, // F
+	}
 )
 
 func main() {
-	var tab [4096]uint8
-	tab[0] = 233
-	tab[1] = 112
-	ch8 := Chip8{pc: 0, memory: tab}
-	ch8.fetchOpcode()
+	if len(os.Args) < 2 {
+		log.Fatal("Specify path to ROM!")
+	}
+	filepath := os.Args[1]
+	_, err := ioutil.ReadFile(filepath)
+	if err != nil {
+		log.Panic(err)
+	}
 
-	//runtime.LockOSThread()
-	//screen := display.InitScreen(640, 320, 64, 32, "aaa")
-	//
-	//for !screen.ShouldClose() {
-	//	screen.Draw()
-	//}
+	var tab [4096]uint8
+
+	runtime.LockOSThread()
+	screen := display.InitScreen(600, 600, 60, 60, "aaa")
+
+	ch8 := Chip8{pc: 0, memory: tab}
+	ch8.Initialize(fontset)
+	//ch8.LoadProgram(rom)
+	ch8.LoadProg(filepath)
+
+	var gfx []uint8
+	for i := 0; i < 60*60; i++ {
+		gfx = append(gfx, 0)
+	}
+
+	screen.Draw([]uint8(gfx))
+	for !screen.ShouldClose() {
+		ch8.EmulateCycle()
+		time.Sleep(500 * time.Millisecond)
+	}
 }
 
 type Chip8 struct {
+	screen *display.Screen
 	opcode uint16
 	memory [4096]uint8
 
@@ -47,7 +89,7 @@ type Chip8 struct {
 	pc uint16
 
 	//Graphics 64x32 resolution
-	gfx [64 * 32]uint8
+	gfx []uint8
 
 	// 60Hz timers (when set above zero they will count down to it)
 	delayTimer uint8
@@ -80,6 +122,33 @@ func (ch8 *Chip8) Initialize(chip8Fontset []uint8) {
 	// TODO:Reset timers
 }
 
+func (c *Chip8) LoadProg(fileName string) error {
+	file, fileErr := os.OpenFile(fileName, os.O_RDONLY, 0777)
+	if fileErr != nil {
+		return fileErr
+	}
+	defer file.Close()
+
+	fStat, fStatErr := file.Stat()
+	if fStatErr != nil {
+		return fStatErr
+	}
+	if int64(len(c.memory)-512) < fStat.Size() { // program is loaded at 0x200
+		return fmt.Errorf("Program size bigger than memory")
+	}
+
+	buffer := make([]byte, fStat.Size())
+	if _, readErr := file.Read(buffer); readErr != nil {
+		return readErr
+	}
+
+	for i := 0; i < len(buffer); i++ {
+		c.memory[i+512] = buffer[i]
+	}
+
+	return nil
+}
+
 func (ch8 *Chip8) LoadProgram(buffer []uint8) {
 	// Load all bytes from buffer to Chip8 memory from 0x200 (=512)
 	for i, data := range buffer {
@@ -87,8 +156,35 @@ func (ch8 *Chip8) LoadProgram(buffer []uint8) {
 	}
 }
 
+var oldMem [4096]uint8
+var firstCycle bool = true
+
 func (ch8 *Chip8) EmulateCycle() {
+	fmt.Println("V:", ch8.V)
+	fmt.Println("stack:", ch8.stack)
+	fmt.Println("sp:", ch8.sp)
+	fmt.Println("pc:", ch8.pc)
+
 	ch8.fetchOpcode()
+	log.Printf("fetch: %#04x", ch8.opcode)
+	ch8.decodeOpcode()
+
+	if !firstCycle {
+		showDiff(oldMem, ch8.memory)
+	} else {
+		firstCycle = !firstCycle
+	}
+	oldMem = ch8.memory
+}
+
+func showDiff(tab1, tab2 [4096]uint8) {
+	fmt.Println("Memory differences:")
+	for i, n := range tab1 {
+		if n != tab2[i] {
+			fmt.Printf("[%d]: %d->%d\n", i, n, tab2[i])
+		}
+	}
+	fmt.Println()
 }
 
 func (ch8 *Chip8) fetchOpcode() {
@@ -152,7 +248,7 @@ func (ch8 *Chip8) decodeOpcode() {
 		break
 
 	case 0x6000: // 0x6XNN: Loads NN into VX
-		ch8.V[ch8.opcode&0x0F00] = uint8(ch8.opcode & 0x00FF)
+		ch8.V[(ch8.opcode&0x0F00)>>8] = uint8(ch8.opcode & 0x00FF)
 		break
 
 	case 0x7000: // 0x7XNN: VX = VX + NN
@@ -240,8 +336,29 @@ func (ch8 *Chip8) decodeOpcode() {
 		ch8.V[ch8.opcode&0x0F00] = uint8(ch8.opcode&0x00FF) & uint8(rand.Intn(256))
 		break
 
-	case 0xD000: // Draw a sprite
-		//TODO
+	case 0xD000: // 0xDXYN: Draw a sprite
+		x := uint16(ch8.V[(ch8.opcode&0x0F00)>>8])
+		y := uint16(ch8.V[(ch8.opcode&0x0F00)>>4])
+		height := ch8.opcode & 0x000F
+		var px uint8
+
+		ch8.V[0xF] = 0
+		for ySprite := uint16(0); ySprite < height; ySprite++ {
+
+			px = ch8.memory[ch8.I+ySprite]
+			for xSprite := uint16(0); xSprite < 8; xSprite++ {
+				if (px & (0x80 >> xSprite)) != 0 {
+					if ch8.gfx[x+xSprite+((y+ySprite)*60)] == 1 {
+						ch8.V[0xF] = 1
+					}
+					ch8.gfx[x+xSprite+((y+ySprite)*60)] ^= 1
+				}
+			}
+		}
+		if !ch8.screen.ShouldClose() {
+			ch8.screen.Draw(ch8.gfx)
+		}
+		ch8.pc += 2
 		break
 	case 0xE000:
 		switch ch8.opcode & 0x000F {
