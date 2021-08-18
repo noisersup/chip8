@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/noisersup/chip8/display"
 )
 
@@ -52,25 +53,10 @@ func main() {
 		log.Panic(err)
 	}
 
-	var tab [4096]uint8
+	a := NewApp(filepath)
 
-	runtime.LockOSThread()
-	screen := display.InitScreen(600, 600, 60, 60, "aaa")
-
-	ch8 := Chip8{pc: 0, memory: tab}
-	ch8.Initialize(fontset)
-	//ch8.LoadProgram(rom)
-	ch8.LoadProg(filepath)
-
-	var gfx []uint8
-	for i := 0; i < 60*60; i++ {
-		gfx = append(gfx, 0)
-	}
-
-	screen.Draw([]uint8(gfx))
-	for !screen.ShouldClose() {
-		ch8.EmulateCycle()
-		time.Sleep(500 * time.Millisecond)
+	if err := tea.NewProgram(a).Start(); err != nil {
+		log.Fatal(err)
 	}
 }
 
@@ -101,9 +87,14 @@ type Chip8 struct {
 
 	// Keypad
 	keys [16]uint8
+
+	debugMode bool
+	stepChan  chan bool
+	tick      int
 }
 
 func (ch8 *Chip8) Initialize(chip8Fontset []uint8) {
+	ch8.tick = 0
 	ch8.pc = 0x200 // Program counter starts at 0x200
 	ch8.opcode = 0 //Reset opcode
 	ch8.I = 0      //Reset index register
@@ -156,25 +147,16 @@ func (ch8 *Chip8) LoadProgram(buffer []uint8) {
 	}
 }
 
-var oldMem [4096]uint8
-var firstCycle bool = true
+var tick uint
 
 func (ch8 *Chip8) EmulateCycle() {
-	fmt.Println("V:", ch8.V)
-	fmt.Println("stack:", ch8.stack)
-	fmt.Println("sp:", ch8.sp)
-	fmt.Println("pc:", ch8.pc)
-
+	if ch8.debugMode {
+		<-ch8.stepChan
+	}
+	tick++
 	ch8.fetchOpcode()
-	log.Printf("fetch: %#04x", ch8.opcode)
 	ch8.decodeOpcode()
 
-	if !firstCycle {
-		showDiff(oldMem, ch8.memory)
-	} else {
-		firstCycle = !firstCycle
-	}
-	oldMem = ch8.memory
 }
 
 func showDiff(tab1, tab2 [4096]uint8) {
@@ -202,6 +184,13 @@ func (ch8 *Chip8) fetchOpcode() {
 			1101000101010011
 	*/
 	ch8.opcode = uint16(ch8.memory[ch8.pc])<<8 | uint16(ch8.memory[ch8.pc+1])
+}
+
+func (ch8 *Chip8) Step() {
+	if !ch8.debugMode {
+		return
+	}
+	ch8.stepChan <- true
 }
 
 func (ch8 *Chip8) decodeOpcode() {
@@ -423,4 +412,75 @@ func (ch8 *Chip8) decodeOpcode() {
 		}
 		break
 	}
+}
+
+type app struct {
+	ch8 *Chip8
+}
+
+func NewApp(filepath string) *app {
+	var tab [4096]uint8
+
+	runtime.LockOSThread()
+	screen := display.InitScreen(600, 600, 60, 60, "aaa")
+
+	stepChan := make(chan bool)
+
+	ch8 := Chip8{pc: 0, memory: tab, debugMode: true, stepChan: stepChan}
+	ch8.Initialize(fontset)
+	//ch8.LoadProgram(rom)
+	ch8.LoadProg(filepath)
+
+	var gfx []uint8
+	for i := 0; i < 60*60; i++ {
+		gfx = append(gfx, 0)
+	}
+
+	screen.Draw([]uint8(gfx))
+	go func() {
+		for !screen.ShouldClose() {
+			ch8.EmulateCycle()
+			time.Sleep(500 * time.Millisecond)
+		}
+	}()
+	return &app{ch8: &ch8}
+}
+
+func (a *app) Init() tea.Cmd {
+	return tea.EnterAltScreen
+}
+
+func (a *app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c", "q":
+			return a, tea.Quit
+		case "space":
+			a.ch8.debugMode = !a.ch8.debugMode
+		case "n":
+			a.ch8.Step()
+		}
+	}
+	return a, nil
+}
+
+func (a *app) View() string {
+	str := "DEBUGGER\n\n"
+	str += fmt.Sprintf("OPCODE: %#04x\n", a.ch8.opcode)
+	str += fmt.Sprintf("TICK: %d\n\n", tick)
+	str += "STACK"
+
+	for i := uint16(0); i < 16; i++ {
+		str += fmt.Sprintf("\nS[%X]", i)
+		if a.ch8.sp == i {
+			str += "<-"
+		} else {
+			str += "  "
+		}
+
+		str += fmt.Sprintf(" = %#04x", a.ch8.stack[i])
+	}
+
+	return str
 }
