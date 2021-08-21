@@ -98,7 +98,7 @@ func (s *Screen) Draw(gfx []uint8) {
 
 	for x := range s.cells {
 		for i, c := range s.cells[x] {
-			if gfx[i*60+x] != 0 {
+			if gfx[i*s.rows+x] != 0 {
 				c.draw()
 			}
 		}

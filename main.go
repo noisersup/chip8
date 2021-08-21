@@ -60,6 +60,7 @@ func main() {
 	}
 }
 
+type UpdateDebugger func()
 type Chip8 struct {
 	screen *display.Screen
 	opcode uint16
@@ -91,6 +92,8 @@ type Chip8 struct {
 	debugMode bool
 	stepChan  chan bool
 	tick      int
+
+	updDbg UpdateDebugger
 }
 
 func (ch8 *Chip8) Initialize(chip8Fontset []uint8) {
@@ -106,6 +109,10 @@ func (ch8 *Chip8) Initialize(chip8Fontset []uint8) {
 	- clear registers V0-VF
 	- clear memory
 	*/
+
+	for i := 0; i < 64*32; i++ {
+		ch8.gfx = append(ch8.gfx, 0)
+	}
 
 	for i := 0; i < 80; i++ {
 		ch8.memory[i] = chip8Fontset[i]
@@ -156,7 +163,7 @@ func (ch8 *Chip8) EmulateCycle() {
 	tick++
 	ch8.fetchOpcode()
 	ch8.decodeOpcode()
-
+	ch8.updDbg()
 }
 
 func showDiff(tab1, tab2 [4096]uint8) {
@@ -202,6 +209,7 @@ func (ch8 *Chip8) decodeOpcode() {
 			break
 		case 0x000E: // 0x00EE: Returns from subroutine
 			ch8.pc = ch8.stack[ch8.sp]
+			ch8.sp--
 			break
 		default:
 			log.Printf("Unknown opcode [0x0000]: 0x%X\n", ch8.opcode)
@@ -213,8 +221,8 @@ func (ch8 *Chip8) decodeOpcode() {
 		break
 
 	case 0x2000: // 0x2NNN: Calls subroutine at NNN
-		ch8.stack[ch8.sp] = ch8.pc
 		ch8.sp++
+		ch8.stack[ch8.sp] = ch8.pc
 		ch8.pc = ch8.opcode & 0x0FFF
 		break
 
@@ -238,10 +246,12 @@ func (ch8 *Chip8) decodeOpcode() {
 
 	case 0x6000: // 0x6XNN: Loads NN into VX
 		ch8.V[(ch8.opcode&0x0F00)>>8] = uint8(ch8.opcode & 0x00FF)
+		ch8.pc += 2
 		break
 
 	case 0x7000: // 0x7XNN: VX = VX + NN
 		ch8.V[ch8.opcode&0x0F00] = ch8.V[ch8.opcode&0x0F00] + uint8(ch8.opcode&0x00FF)
+		ch8.pc += 2
 		break
 
 	case 0x8000:
@@ -305,16 +315,19 @@ func (ch8 *Chip8) decodeOpcode() {
 		default:
 			log.Printf("Unknown opcode [0x8000]: 0x%X\n", ch8.opcode)
 		}
+		ch8.pc += 2
 		break
 
 	case 0x9000: // 0x9XY0: Skips the instruction if VX != VY
 		if ch8.V[ch8.opcode&0x0F00] != ch8.V[ch8.opcode&0x00F0] {
 			ch8.pc += 2
 		}
+		ch8.pc += 2
 		break
 
 	case 0xA000: // 0xANNN: Sets the value of I to NNN
 		ch8.I = ch8.opcode & 0x0FFF
+		ch8.pc += 2
 		break
 
 	case 0xB000: // 0xBNNN: Jumps to the address NNN + V0
@@ -323,11 +336,12 @@ func (ch8 *Chip8) decodeOpcode() {
 
 	case 0xC000: // 0xCXNN: sets VX to AND operation with random number and NN
 		ch8.V[ch8.opcode&0x0F00] = uint8(ch8.opcode&0x00FF) & uint8(rand.Intn(256))
+		ch8.pc += 2
 		break
 
 	case 0xD000: // 0xDXYN: Draw a sprite
 		x := uint16(ch8.V[(ch8.opcode&0x0F00)>>8])
-		y := uint16(ch8.V[(ch8.opcode&0x0F00)>>4])
+		y := uint16(ch8.V[(ch8.opcode&0x00F0)>>4])
 		height := ch8.opcode & 0x000F
 		var px uint8
 
@@ -350,6 +364,7 @@ func (ch8 *Chip8) decodeOpcode() {
 		ch8.pc += 2
 		break
 	case 0xE000:
+		ch8.pc += 2
 		switch ch8.opcode & 0x000F {
 		case 0x000E: // 0xEX9E: Skips next instruction if key stored in VX is pressed
 			if ch8.keys[ch8.V[ch8.opcode&0x0F00]] == 1 {
@@ -410,29 +425,36 @@ func (ch8 *Chip8) decodeOpcode() {
 			}
 			break
 		}
+		ch8.pc += 2
+		ch8.pc += 2
 		break
 	}
 }
 
 type app struct {
-	ch8 *Chip8
+	ch8         *Chip8
+	refreshChan chan bool
 }
 
 func NewApp(filepath string) *app {
 	var tab [4096]uint8
 
 	runtime.LockOSThread()
-	screen := display.InitScreen(600, 600, 60, 60, "aaa")
+	screen := display.InitScreen(640, 320, 64, 32, "aaa")
 
 	stepChan := make(chan bool)
+	refreshChan := make(chan bool)
 
 	ch8 := Chip8{pc: 0, memory: tab, debugMode: true, stepChan: stepChan}
+	a := app{ch8: &ch8, refreshChan: refreshChan}
+	ch8.updDbg = a.refresh
+
 	ch8.Initialize(fontset)
 	//ch8.LoadProgram(rom)
 	ch8.LoadProg(filepath)
 
 	var gfx []uint8
-	for i := 0; i < 60*60; i++ {
+	for i := 0; i < 64*32; i++ {
 		gfx = append(gfx, 0)
 	}
 
@@ -443,11 +465,19 @@ func NewApp(filepath string) *app {
 			time.Sleep(500 * time.Millisecond)
 		}
 	}()
-	return &app{ch8: &ch8}
+	return &a
 }
 
+type refreshMsg bool
+
+func (a *app) refresh() {
+	a.refreshChan <- true
+}
+func (a *app) waitForRefresh() tea.Cmd {
+	return func() tea.Msg { return refreshMsg(<-a.refreshChan) }
+}
 func (a *app) Init() tea.Cmd {
-	return tea.EnterAltScreen
+	return tea.Batch(tea.EnterAltScreen, a.waitForRefresh())
 }
 
 func (a *app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -461,6 +491,9 @@ func (a *app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "n":
 			a.ch8.Step()
 		}
+
+	case refreshMsg:
+		return a, a.waitForRefresh()
 	}
 	return a, nil
 }
@@ -468,6 +501,8 @@ func (a *app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a *app) View() string {
 	str := "DEBUGGER\n\n"
 	str += fmt.Sprintf("OPCODE: %#04x\n", a.ch8.opcode)
+	str += fmt.Sprintf("I: %#04x\n", a.ch8.I)
+	str += fmt.Sprintf("PC: %#04x\n", a.ch8.pc)
 	str += fmt.Sprintf("TICK: %d\n\n", tick)
 	str += "STACK"
 
@@ -480,6 +515,12 @@ func (a *app) View() string {
 		}
 
 		str += fmt.Sprintf(" = %#04x", a.ch8.stack[i])
+		//Registers
+		str += fmt.Sprintf("	V[%X]  = %#04x", i, a.ch8.V[i])
+		//Memory
+		currPc := a.ch8.pc + (i * 2)
+		currOpcode := uint16(a.ch8.memory[currPc])<<8 | uint16(a.ch8.memory[currPc+1])
+		str += fmt.Sprintf(" | [%04x]: %#04x", currPc, currOpcode)
 	}
 
 	return str
