@@ -44,14 +44,47 @@ var (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		log.Fatal("Specify path to ROM!")
-	}
-	filepath := os.Args[1]
-	a := NewApp(filepath)
 
-	if err := tea.NewProgram(a).Start(); err != nil {
-		log.Fatal(err)
+	if len(os.Args) < 2 {
+		//log.Fatal("Specify path to ROM!")
+		os.Args = append(os.Args, "Space Invaders [David Winter].ch8")
+	}
+	runtime.LockOSThread()
+
+	// Display test
+	if os.Args[1] == "test" {
+		var gfx []uint8
+		gfx = make([]uint8, 64*32, 64*32)
+
+		/*for i := 0; i < 32; i++ {
+			for j := 0; j < 64; j++ {
+				if i%2 == 0 {
+					gfx = append(gfx, 1)
+				} else {
+					gfx = append(gfx, 1)
+				}
+			}
+		}*/
+
+		screen, err := display.InitScreen()
+		if err != nil {
+			panic(err)
+		}
+		for !screen.ShouldClose() {
+			for i := 0; i < 64*32; i++ {
+				gfx[i] = 1
+				screen.Draw(gfx)
+			}
+		}
+
+	} else {
+
+		filepath := os.Args[1]
+		a := NewApp(filepath)
+
+		if err := tea.NewProgram(a).Start(); err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 
@@ -62,11 +95,14 @@ type app struct {
 
 func NewApp(filepath string) *app {
 	runtime.LockOSThread()
-	screen := display.InitScreen(640, 320, 64, 32, "aaa")
+	screen, err := display.InitScreen()
+	if err != nil {
+		panic(err)
+	}
 
 	refreshChan := make(chan bool)
 
-	ch8 := chip8.NewChip8()
+	ch8 := chip8.NewChip8(screen)
 
 	a := app{ch8: ch8, refreshChan: refreshChan}
 	ch8.UpdDbg = a.refresh

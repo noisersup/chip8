@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/noisersup/chip8/display"
@@ -46,9 +47,9 @@ type Chip8 struct {
 	UpdDbg models.UpdateDebugger
 }
 
-func NewChip8() *Chip8 {
+func NewChip8(screen *display.Screen) *Chip8 {
 	stepCh := make(chan bool)
-	c := Chip8{Pc: 0, Memory: [4096]uint8{}, DebugMode: true, stepChan: stepCh}
+	c := Chip8{screen: screen, Pc: 0, Memory: [4096]uint8{}, DebugMode: true, stepChan: stepCh}
 	return &c
 }
 
@@ -66,9 +67,8 @@ func (ch8 *Chip8) Initialize(chip8Fontset []uint8) {
 	- clear memory
 	*/
 
-	for i := 0; i < 64*32; i++ {
-		ch8.Gfx = append(ch8.Gfx, 0)
-	}
+	ch8.Gfx = make([]uint8, 64*32, 64*32)
+	ch8.screen.Draw(ch8.Gfx)
 
 	for i := 0; i < 80; i++ {
 		ch8.Memory[i] = chip8Fontset[i]
@@ -277,6 +277,7 @@ func (ch8 *Chip8) decodeOpcode() {
 		break
 
 	case 0xD000: // 0xDXYN: Draw a sprite
+		runtime.LockOSThread()
 		x := uint16(ch8.V[(ch8.Opcode&0x0F00)>>8])
 		y := uint16(ch8.V[(ch8.Opcode&0x00F0)>>4])
 		height := ch8.Opcode & 0x000F
