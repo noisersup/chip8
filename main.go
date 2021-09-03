@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"runtime"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -49,22 +48,11 @@ func main() {
 		//log.Fatal("Specify path to ROM!")
 		os.Args = append(os.Args, "Space Invaders [David Winter].ch8")
 	}
-	runtime.LockOSThread()
 
-	// Display test
-	if os.Args[1] == "test" {
+	switch os.Args[1] {
+	case "test": // Display screen test
 		var gfx []uint8
 		gfx = make([]uint8, 64*32, 64*32)
-
-		/*for i := 0; i < 32; i++ {
-			for j := 0; j < 64; j++ {
-				if i%2 == 0 {
-					gfx = append(gfx, 1)
-				} else {
-					gfx = append(gfx, 1)
-				}
-			}
-		}*/
 
 		screen, err := display.InitScreen()
 		if err != nil {
@@ -76,9 +64,35 @@ func main() {
 				screen.Draw(gfx)
 			}
 		}
+		break
 
-	} else {
+	case "debug": // Emulate without cli
+		log.Print("debug")
+		screen, err := display.InitScreen()
+		if err != nil {
+			panic(err)
+		}
+		ch8 := chip8.NewChip8(screen)
+		ch8.Initialize(fontset)
+		ch8.LoadProgram("Space Invaders [David Winter].ch8")
+		ch8.UpdDbg = func() {
 
+		}
+
+		/*go func() { // runs cpu
+			for {
+				ch8.Step()
+			}
+		}()*/
+		ch8.DebugMode = false
+
+		for !screen.ShouldClose() {
+			ch8.EmulateCycle()
+			//time.Sleep(500 * time.Millisecond)
+		}
+
+		break
+	default: // Emulate with cli
 		filepath := os.Args[1]
 		a := NewApp(filepath)
 
@@ -94,7 +108,6 @@ type app struct {
 }
 
 func NewApp(filepath string) *app {
-	runtime.LockOSThread()
 	screen, err := display.InitScreen()
 	if err != nil {
 		panic(err)

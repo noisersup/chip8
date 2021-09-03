@@ -5,7 +5,6 @@ import (
 	"log"
 	"math/rand"
 	"os"
-	"runtime"
 	"time"
 
 	"github.com/noisersup/chip8/display"
@@ -277,7 +276,6 @@ func (ch8 *Chip8) decodeOpcode() {
 		break
 
 	case 0xD000: // 0xDXYN: Draw a sprite
-		runtime.LockOSThread()
 		x := uint16(ch8.V[(ch8.Opcode&0x0F00)>>8])
 		y := uint16(ch8.V[(ch8.Opcode&0x00F0)>>4])
 		height := ch8.Opcode & 0x000F
