@@ -110,6 +110,7 @@ func (ch8 *Chip8) EmulateCycle() {
 	ch8.fetchOpcode()
 	ch8.decodeOpcode()
 	ch8.UpdDbg()
+	time.Sleep(100 * time.Millisecond)
 }
 
 func (ch8 *Chip8) fetchOpcode() {
@@ -127,6 +128,7 @@ func (ch8 *Chip8) fetchOpcode() {
 			1101000101010011
 	*/
 	ch8.Opcode = uint16(ch8.Memory[ch8.Pc])<<8 | uint16(ch8.Memory[ch8.Pc+1])
+	log.Printf("0x%04X", ch8.Opcode)
 }
 
 func (ch8 *Chip8) Step() {
@@ -163,18 +165,21 @@ func (ch8 *Chip8) decodeOpcode() {
 		break
 
 	case 0x3000: // 0x3XNN: Skips the next instruction if VX == NN
-		if ch8.V[ch8.Opcode&0x0F00] == uint8(ch8.Opcode&0x00FF) {
+		ch8.Pc += 2
+		if ch8.V[ch8.Opcode&0x0F00>>8] == uint8(ch8.Opcode&0x00FF>>8) {
 			ch8.Pc += 2
 		}
 		break
 
 	case 0x4000: // 0x4XNN: Skips the next instruction if VX != NN
+		ch8.Pc += 2
 		if ch8.V[ch8.Opcode&0x0F00] != uint8(ch8.Opcode&0x00FF) {
 			ch8.Pc += 2
 		}
 		break
 
 	case 0x5000: // 0x5XY0: Skips the next instruction if VX == VY
+		ch8.Pc += 2
 		if ch8.V[ch8.Opcode&0x0F00] == ch8.V[ch8.Opcode&0x00F0] {
 			ch8.Pc += 2
 		}
@@ -186,13 +191,13 @@ func (ch8 *Chip8) decodeOpcode() {
 		break
 
 	case 0x7000: // 0x7XNN: VX = VX + NN
-		ch8.V[ch8.Opcode&0x0F00] = ch8.V[ch8.Opcode&0x0F00] + uint8(ch8.Opcode&0x00FF)
+		ch8.V[(ch8.Opcode&0x0F00)>>8] = ch8.V[(ch8.Opcode&0x0F00)>>8] + uint8(ch8.Opcode&0x00FF)
 		ch8.Pc += 2
 		break
 
 	case 0x8000:
-		vx := ch8.Opcode & 0x0F00
-		vy := ch8.Opcode & 0x00F0
+		vx := ch8.Opcode & 0x0F00 >> 8
+		vy := ch8.Opcode & 0x00F0 >> 4
 
 		switch ch8.Opcode & 0x000F {
 		case 0x0000: // 0x8XY0: Copy the value of VY to VX
@@ -255,7 +260,7 @@ func (ch8 *Chip8) decodeOpcode() {
 		break
 
 	case 0x9000: // 0x9XY0: Skips the instruction if VX != VY
-		if ch8.V[ch8.Opcode&0x0F00] != ch8.V[ch8.Opcode&0x00F0] {
+		if ch8.V[ch8.Opcode&0x0F00>>8] != ch8.V[ch8.Opcode&0x00F0>>4] {
 			ch8.Pc += 2
 		}
 		ch8.Pc += 2
@@ -271,7 +276,7 @@ func (ch8 *Chip8) decodeOpcode() {
 		break
 
 	case 0xC000: // 0xCXNN: sets VX to AND operation with random number and NN
-		ch8.V[ch8.Opcode&0x0F00] = uint8(ch8.Opcode&0x00FF) & uint8(rand.Intn(256))
+		ch8.V[ch8.Opcode&0x0F00>>8] = uint8(ch8.Opcode&0x00FF) & uint8(rand.Intn(256))
 		ch8.Pc += 2
 		break
 
@@ -287,6 +292,7 @@ func (ch8 *Chip8) decodeOpcode() {
 			px = ch8.Memory[ch8.I+ySprite]
 			for xSprite := uint16(0); xSprite < 8; xSprite++ {
 				if (px & (0x80 >> xSprite)) != 0 {
+					//log.Printf("x: %d xSprite: %d y: %d ySprite: %d %d", x, xSprite, y, ySprite, x+xSprite+((y+ySprite)*60))
 					if ch8.Gfx[x+xSprite+((y+ySprite)*60)] == 1 {
 						ch8.V[0xF] = 1
 					}
@@ -303,44 +309,38 @@ func (ch8 *Chip8) decodeOpcode() {
 		ch8.Pc += 2
 		switch ch8.Opcode & 0x000F {
 		case 0x000E: // 0xEX9E: Skips next instruction if key stored in VX is pressed
-			if ch8.keys[ch8.V[ch8.Opcode&0x0F00]] == 1 {
+			if ch8.keys[ch8.V[ch8.Opcode&0x0F00>>8]] == 1 {
 				ch8.Pc += 2
 			}
 			break
 
 		case 0x0001: // 0xEXA1: Skips next instruction if key stored in VX is not pressed
-			if ch8.keys[ch8.V[ch8.Opcode&0x0F00]] == 0 {
+			if ch8.keys[ch8.V[ch8.Opcode&0x0F00>>8]] == 0 {
 				ch8.Pc += 2
 			}
 			break
 		}
 		break
 	case 0xF000:
-		vx := ch8.Opcode & 0x0F00
+		vx := (ch8.Opcode & 0x0F00) >> 8
 
 		switch ch8.Opcode & 0x00FF {
 		case 0x0007: // 0xFX07: Read delay timer into VX
 			ch8.V[vx] = ch8.DelayTimer
-			break
 		case 0x000A: // 0xFX0A: Wait for a key press and store into VX
 			//TODO
-			break
 
 		case 0x0015: // 0xFX15: Load VX to delay timer
 			ch8.DelayTimer = ch8.V[vx]
-			break
 
 		case 0x0018: // 0xFX18: Load VX to sound timer
 			ch8.SoundTimer = ch8.V[vx]
-			break
 
 		case 0x001E: // 0xFX1E: Adds VX to I
 			ch8.I += uint16(ch8.V[vx])
-			break
 
 		case 0x0029: // 0xFX29: Set I to the location of sprite in VX
 			ch8.I = uint16(ch8.V[vx] * 0x05)
-			break
 
 		case 0x0033: // 0xFX33: Stores BCD representation of VX
 			hundreds := vx / 100
@@ -354,14 +354,11 @@ func (ch8 *Chip8) decodeOpcode() {
 			for i, register := range ch8.V {
 				ch8.Memory[ch8.I+uint16(i)] = register
 			}
-			break
 		case 0x0065: // 0xFX65: Loads to V0 to VX from memory starting at I without modifing I.
 			for i := range ch8.V {
 				ch8.V[i] = ch8.Memory[ch8.I+uint16(i)]
 			}
-			break
 		}
-		ch8.Pc += 2
 		ch8.Pc += 2
 		break
 	}
