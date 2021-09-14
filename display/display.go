@@ -231,7 +231,7 @@ func draw(gfx []uint8, cells [][]*cell, window *glfw.Window, program uint32) {
 
 	for x := range cells {
 		for i, c := range cells[x] {
-			if gfx[x*rows+i] != 0 {
+			if gfx[columns*(rows-i-1)+x] != 0 {
 				c.draw()
 			}
 		}

@@ -128,7 +128,7 @@ func (ch8 *Chip8) fetchOpcode() {
 			1101000101010011
 	*/
 	ch8.Opcode = uint16(ch8.Memory[ch8.Pc])<<8 | uint16(ch8.Memory[ch8.Pc+1])
-	log.Printf("0x%04X", ch8.Opcode)
+	log.Printf("0x%04x", ch8.Opcode)
 }
 
 func (ch8 *Chip8) Step() {
@@ -166,7 +166,7 @@ func (ch8 *Chip8) decodeOpcode() {
 
 	case 0x3000: // 0x3XNN: Skips the next instruction if VX == NN
 		ch8.Pc += 2
-		if ch8.V[ch8.Opcode&0x0F00>>8] == uint8(ch8.Opcode&0x00FF>>8) {
+		if ch8.V[ch8.Opcode&0x0F00>>8] == uint8(ch8.Opcode&0x00FF) {
 			ch8.Pc += 2
 		}
 		break
@@ -283,23 +283,41 @@ func (ch8 *Chip8) decodeOpcode() {
 	case 0xD000: // 0xDXYN: Draw a sprite
 		x := uint16(ch8.V[(ch8.Opcode&0x0F00)>>8])
 		y := uint16(ch8.V[(ch8.Opcode&0x00F0)>>4])
-		height := ch8.Opcode & 0x000F
-		var px uint8
+		height := uint16(ch8.Opcode & 0x000F)
+		var px uint16
 
-		ch8.V[0xF] = 0
-		for ySprite := uint16(0); ySprite < height; ySprite++ {
+		ch8.V[0xF] = 0 // reset VF reg
 
-			px = ch8.Memory[ch8.I+ySprite]
-			for xSprite := uint16(0); xSprite < 8; xSprite++ {
-				if (px & (0x80 >> xSprite)) != 0 {
-					//log.Printf("x: %d xSprite: %d y: %d ySprite: %d %d", x, xSprite, y, ySprite, x+xSprite+((y+ySprite)*60))
-					if ch8.Gfx[x+xSprite+((y+ySprite)*60)] == 1 {
+		for row := uint16(0); row < height; row++ {
+			px = uint16(ch8.Memory[ch8.I+row])
+
+			for col := uint16(0); col < 8; col++ {
+				if (px & (0x80 >> col)) != 0 {
+					if ch8.Gfx[(x+col+((y+row)*64))] == 1 {
 						ch8.V[0xF] = 1
 					}
-					ch8.Gfx[x+xSprite+((y+ySprite)*60)] ^= 1
+					ch8.Gfx[(x + col + ((y + row) * 64))] ^= 1
 				}
 			}
 		}
+
+		//Debug
+		for i := uint16(0); i < ch8.Opcode&0x000F; i++ {
+			out := uint16(ch8.Memory[ch8.I+i])
+			log.Printf("%b", out)
+		}
+		for x := range ch8.Gfx {
+			if x%64 == 0 {
+				fmt.Println()
+			}
+			if ch8.Gfx[x] > 0 {
+				fmt.Print("X")
+			} else {
+				fmt.Print(" ")
+			}
+
+		}
+
 		if !ch8.screen.ShouldClose() {
 			ch8.screen.Draw(ch8.Gfx)
 		}

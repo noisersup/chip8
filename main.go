@@ -75,6 +75,7 @@ func main() {
 		ch8 := chip8.NewChip8(screen)
 		ch8.Initialize(fontset)
 		ch8.LoadProgram("Space Invaders [David Winter].ch8")
+		//ch8.LoadProgram("test.ch8")
 		ch8.UpdDbg = func() {
 
 		}
@@ -148,7 +149,7 @@ func (a *app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return a, tea.Quit
-		case "space":
+		case " ":
 			a.ch8.DebugMode = !a.ch8.DebugMode
 		case "n":
 			a.ch8.Step()
