@@ -49,6 +49,8 @@ func main() {
 		os.Args = append(os.Args, "Space Invaders [David Winter].ch8")
 	}
 
+	gfx := make(chan []uint8)
+
 	switch os.Args[1] {
 	case "test": // Display screen test
 		var gfx []uint8
@@ -72,7 +74,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		ch8 := chip8.NewChip8(screen)
+		ch8 := chip8.NewChip8(screen, gfx)
 		ch8.Initialize(fontset)
 		ch8.LoadProgram("Space Invaders [David Winter].ch8")
 		//ch8.LoadProgram("test.ch8")
@@ -95,11 +97,23 @@ func main() {
 		break
 	default: // Emulate with cli
 		filepath := os.Args[1]
-		a := NewApp(filepath)
 
-		if err := tea.NewProgram(a).Start(); err != nil {
-			log.Fatal(err)
+		screen, err := display.InitScreen()
+		if err != nil {
+			panic(err)
 		}
+
+		go func() {
+			a := NewApp(filepath, screen, gfx)
+			if err := tea.NewProgram(a).Start(); err != nil {
+				log.Fatal(err)
+			}
+		}()
+
+		for !screen.ShouldClose() {
+			screen.Draw(<-gfx)
+		}
+
 	}
 }
 
@@ -108,15 +122,10 @@ type app struct {
 	refreshChan chan bool
 }
 
-func NewApp(filepath string) *app {
-	screen, err := display.InitScreen()
-	if err != nil {
-		panic(err)
-	}
-
+func NewApp(filepath string, screen *display.Screen, gfx chan []uint8) *app {
 	refreshChan := make(chan bool)
 
-	ch8 := chip8.NewChip8(screen)
+	ch8 := chip8.NewChip8(screen, gfx)
 
 	a := app{ch8: ch8, refreshChan: refreshChan}
 	ch8.UpdDbg = a.refresh
@@ -127,7 +136,7 @@ func NewApp(filepath string) *app {
 	go func() {
 		for !screen.ShouldClose() {
 			ch8.EmulateCycle()
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 		}
 	}()
 	return &a

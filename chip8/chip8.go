@@ -43,12 +43,13 @@ type Chip8 struct {
 	stepChan  chan bool
 	Tick      int
 
-	UpdDbg models.UpdateDebugger
+	display chan<- []uint8
+	UpdDbg  models.UpdateDebugger
 }
 
-func NewChip8(screen *display.Screen) *Chip8 {
+func NewChip8(screen *display.Screen, gfx chan []uint8) *Chip8 {
 	stepCh := make(chan bool)
-	c := Chip8{screen: screen, Pc: 0, Memory: [4096]uint8{}, DebugMode: true, stepChan: stepCh}
+	c := Chip8{screen: screen, Pc: 0, Memory: [4096]uint8{}, DebugMode: true, stepChan: stepCh, display: gfx}
 	return &c
 }
 
@@ -110,7 +111,7 @@ func (ch8 *Chip8) EmulateCycle() {
 	ch8.fetchOpcode()
 	ch8.decodeOpcode()
 	ch8.UpdDbg()
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 }
 
 func (ch8 *Chip8) fetchOpcode() {
@@ -128,7 +129,7 @@ func (ch8 *Chip8) fetchOpcode() {
 			1101000101010011
 	*/
 	ch8.Opcode = uint16(ch8.Memory[ch8.Pc])<<8 | uint16(ch8.Memory[ch8.Pc+1])
-	log.Printf("0x%04x", ch8.Opcode)
+	//log.Printf("0x%04x", ch8.Opcode)
 }
 
 func (ch8 *Chip8) Step() {
@@ -301,25 +302,8 @@ func (ch8 *Chip8) decodeOpcode() {
 			}
 		}
 
-		//Debug
-		for i := uint16(0); i < ch8.Opcode&0x000F; i++ {
-			out := uint16(ch8.Memory[ch8.I+i])
-			log.Printf("%b", out)
-		}
-		for x := range ch8.Gfx {
-			if x%64 == 0 {
-				fmt.Println()
-			}
-			if ch8.Gfx[x] > 0 {
-				fmt.Print("X")
-			} else {
-				fmt.Print(" ")
-			}
-
-		}
-
 		if !ch8.screen.ShouldClose() {
-			ch8.screen.Draw(ch8.Gfx)
+			ch8.display <- ch8.Gfx
 		}
 		ch8.Pc += 2
 		break
