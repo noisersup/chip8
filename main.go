@@ -49,8 +49,6 @@ func main() {
 		os.Args = append(os.Args, "Space Invaders [David Winter].ch8")
 	}
 
-	gfx := make(chan []uint8)
-
 	switch os.Args[1] {
 	case "test": // Display screen test
 		var gfx []uint8
@@ -74,19 +72,20 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+
+		gfx := make(chan []uint8)
+
 		ch8 := chip8.NewChip8(screen, gfx)
-		ch8.Initialize(fontset)
+		go func() {
+			ch8.Initialize(fontset)
+		}()
+		screen.Draw(<-gfx)
 		ch8.LoadProgram("Space Invaders [David Winter].ch8")
 		//ch8.LoadProgram("test.ch8")
 		ch8.UpdDbg = func() {
 
 		}
 
-		/*go func() { // runs cpu
-			for {
-				ch8.Step()
-			}
-		}()*/
 		ch8.DebugMode = false
 
 		go func() {
@@ -96,7 +95,6 @@ func main() {
 		}()
 		for !screen.ShouldClose() {
 			screen.Draw(<-gfx)
-			//time.Sleep(500 * time.Millisecond)
 		}
 
 		break
@@ -107,6 +105,7 @@ func main() {
 			panic(err)
 		}
 
+		gfx := make(chan []uint8)
 		go func() {
 			a := NewApp(filepath, screen, gfx)
 			if err := tea.NewProgram(a).Start(); err != nil {

@@ -68,7 +68,7 @@ func (ch8 *Chip8) Initialize(chip8Fontset []uint8) {
 	*/
 
 	ch8.Gfx = make([]uint8, 64*32, 64*32)
-	ch8.screen.Draw(ch8.Gfx)
+	ch8.display <- ch8.Gfx
 
 	for i := 0; i < 80; i++ {
 		ch8.Memory[i] = chip8Fontset[i]
