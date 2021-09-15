@@ -3,7 +3,6 @@ package display
 import (
 	"fmt"
 	"log"
-	"runtime"
 	"strings"
 
 	"github.com/go-gl/gl/v4.1-core/gl"
@@ -55,7 +54,6 @@ type Screen struct {
 }
 
 func InitScreen() (*Screen, error) {
-	runtime.LockOSThread()
 	window, err := initGlfw()
 	if err != nil {
 		return nil, err

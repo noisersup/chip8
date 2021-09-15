@@ -111,7 +111,6 @@ func (ch8 *Chip8) EmulateCycle() {
 	ch8.fetchOpcode()
 	ch8.decodeOpcode()
 	ch8.UpdDbg()
-	time.Sleep(10 * time.Millisecond)
 }
 
 func (ch8 *Chip8) fetchOpcode() {
@@ -302,9 +301,7 @@ func (ch8 *Chip8) decodeOpcode() {
 			}
 		}
 
-		if !ch8.screen.ShouldClose() {
-			ch8.display <- ch8.Gfx
-		}
+		ch8.display <- ch8.Gfx
 		ch8.Pc += 2
 		break
 	case 0xE000:

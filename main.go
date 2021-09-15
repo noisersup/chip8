@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
+	"runtime"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/noisersup/chip8/chip8"
@@ -89,15 +89,19 @@ func main() {
 		}()*/
 		ch8.DebugMode = false
 
+		go func() {
+			for {
+				ch8.EmulateCycle()
+			}
+		}()
 		for !screen.ShouldClose() {
-			ch8.EmulateCycle()
+			screen.Draw(<-gfx)
 			//time.Sleep(500 * time.Millisecond)
 		}
 
 		break
 	default: // Emulate with cli
 		filepath := os.Args[1]
-
 		screen, err := display.InitScreen()
 		if err != nil {
 			panic(err)
@@ -110,6 +114,7 @@ func main() {
 			}
 		}()
 
+		runtime.LockOSThread()
 		for !screen.ShouldClose() {
 			screen.Draw(<-gfx)
 		}
@@ -134,9 +139,9 @@ func NewApp(filepath string, screen *display.Screen, gfx chan []uint8) *app {
 	ch8.LoadProgram(filepath)
 
 	go func() {
-		for !screen.ShouldClose() {
+		for {
 			ch8.EmulateCycle()
-			time.Sleep(50 * time.Millisecond)
+			//time.Sleep(50 * time.Millisecond)
 		}
 	}()
 	return &a
