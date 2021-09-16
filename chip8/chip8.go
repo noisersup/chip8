@@ -107,6 +107,15 @@ func (ch8 *Chip8) EmulateCycle() {
 	if ch8.DebugMode {
 		<-ch8.stepChan
 	}
+	if ch8.DelayTimer > 0 {
+		for {
+			time.Sleep(10 * time.Millisecond)
+			ch8.DelayTimer--
+			if ch8.DelayTimer <= 0 {
+				break
+			}
+		}
+	}
 	ch8.Tick++
 	ch8.fetchOpcode()
 	ch8.decodeOpcode()
