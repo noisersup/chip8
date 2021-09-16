@@ -155,6 +155,7 @@ func (ch8 *Chip8) decodeOpcode() {
 		case 0x000E: // 0x00EE: Returns from subroutine
 			ch8.Pc = ch8.Stack[ch8.Sp]
 			ch8.Sp--
+			ch8.Pc += 2
 			break
 		default:
 			log.Printf("Unknown opcode [0x0000]: 0x%X\n", ch8.Opcode)
@@ -180,14 +181,14 @@ func (ch8 *Chip8) decodeOpcode() {
 
 	case 0x4000: // 0x4XNN: Skips the next instruction if VX != NN
 		ch8.Pc += 2
-		if ch8.V[ch8.Opcode&0x0F00] != uint8(ch8.Opcode&0x00FF) {
+		if ch8.V[ch8.Opcode&0x0F00>>8] != uint8(ch8.Opcode&0x00FF) {
 			ch8.Pc += 2
 		}
 		break
 
 	case 0x5000: // 0x5XY0: Skips the next instruction if VX == VY
 		ch8.Pc += 2
-		if ch8.V[ch8.Opcode&0x0F00] == ch8.V[ch8.Opcode&0x00F0] {
+		if ch8.V[ch8.Opcode&0x0F00>>8] == ch8.V[ch8.Opcode&0x00F0>>4] {
 			ch8.Pc += 2
 		}
 		break
@@ -244,7 +245,9 @@ func (ch8 *Chip8) decodeOpcode() {
 			break
 
 		case 0x0006: // 0x8XY6: VX = VX >> VY
-			ch8.V[vx] = ch8.V[vx] >> ch8.V[vy]
+			ch8.V[0xF] = ch8.V[vy] & 1
+			ch8.V[vx] = ch8.V[vy]
+			ch8.V[vx] >>= 1
 			break
 
 		case 0x0007: // 0x8XY7: VX = VY SUB VX
@@ -257,7 +260,9 @@ func (ch8 *Chip8) decodeOpcode() {
 			break
 
 		case 0x000E: // 0x8XYE: VX = VX << VY
-			ch8.V[vx] = ch8.V[vx] << ch8.V[vy]
+			ch8.V[0xF] = ch8.V[vy] & 1
+			ch8.V[vx] = ch8.V[vy]
+			ch8.V[vx] <<= 1
 			break
 
 		default:
@@ -349,19 +354,20 @@ func (ch8 *Chip8) decodeOpcode() {
 			ch8.I = uint16(ch8.V[vx] * 0x05)
 
 		case 0x0033: // 0xFX33: Stores BCD representation of VX
-			hundreds := vx / 100
-			tens := (vx - hundreds*100) / 10
-			ones := vx - hundreds*100 - tens*10
+			hundreds := ch8.V[vx] / 100
+			tens := (ch8.V[vx] - uint8(hundreds)*100) / 10
+			ones := (ch8.V[vx] - (uint8(hundreds)*100 + tens*10))
+
 			ch8.Memory[ch8.I] = uint8(hundreds)
 			ch8.Memory[ch8.I+1] = uint8(tens)
 			ch8.Memory[ch8.I+2] = uint8(ones)
 
 		case 0x0055: // 0xFX55: Stores V0 to VX in memory starting at I without modifing I.
-			for i, register := range ch8.V {
-				ch8.Memory[ch8.I+uint16(i)] = register
+			for i := uint16(0); i <= ch8.Opcode&0x0F00>>8; i++ {
+				ch8.Memory[ch8.I+uint16(i)] = ch8.V[i]
 			}
 		case 0x0065: // 0xFX65: Loads to V0 to VX from memory starting at I without modifing I.
-			for i := range ch8.V {
+			for i := uint16(0); i <= ch8.Opcode&0x0F00>>8; i++ {
 				ch8.V[i] = ch8.Memory[ch8.I+uint16(i)]
 			}
 		}
