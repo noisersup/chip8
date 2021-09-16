@@ -138,6 +138,13 @@ func (ch8 *Chip8) Step() {
 	ch8.stepChan <- true
 }
 
+func (ch8 *Chip8) ToggleDebug() {
+	ch8.DebugMode = !ch8.DebugMode
+	if !ch8.DebugMode {
+		ch8.stepChan <- true
+	}
+}
+
 func (ch8 *Chip8) decodeOpcode() {
 	switch ch8.Opcode & 0xF000 { // Checks first byte
 	case 0x0000:

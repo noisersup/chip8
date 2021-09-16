@@ -163,7 +163,7 @@ func (a *app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return a, tea.Quit
 		case " ":
-			a.ch8.DebugMode = !a.ch8.DebugMode
+			a.ch8.ToggleDebug()
 		case "n":
 			a.ch8.Step()
 		}
