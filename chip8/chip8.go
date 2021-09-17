@@ -113,7 +113,7 @@ func (ch8 *Chip8) EmulateCycle(input [16]uint8) {
 	ch8.fetchOpcode()
 	ch8.decodeOpcode()
 	ch8.UpdDbg()
-	time.Sleep(10 * time.Millisecond)
+	//time.Sleep(10 * time.Millisecond)
 }
 
 func (ch8 *Chip8) fetchOpcode() {
