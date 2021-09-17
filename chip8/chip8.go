@@ -103,7 +103,7 @@ func (c *Chip8) LoadProgram(fileName string) error {
 	return nil
 }
 
-func (ch8 *Chip8) EmulateCycle() {
+func (ch8 *Chip8) EmulateCycle(input [16]uint8) {
 	if ch8.DebugMode {
 		<-ch8.stepChan
 	}
@@ -117,6 +117,7 @@ func (ch8 *Chip8) EmulateCycle() {
 		}
 	}
 	ch8.Tick++
+	ch8.keys = input
 	ch8.fetchOpcode()
 	ch8.decodeOpcode()
 	ch8.UpdDbg()
@@ -145,6 +146,10 @@ func (ch8 *Chip8) Step() {
 		return
 	}
 	ch8.stepChan <- true
+}
+
+func (ch8 *Chip8) GetKeys() [16]uint8 {
+	return ch8.keys
 }
 
 func (ch8 *Chip8) ToggleDebug() {

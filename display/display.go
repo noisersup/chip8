@@ -77,6 +77,63 @@ func (s *Screen) Draw(gfx []uint8) {
 	draw(gfx, s.cells, s.window, s.program)
 }
 
+func (s *Screen) GetKeys() [16]uint8 {
+	var keys [16]uint8
+
+	if s.window.GetKey(glfw.Key1) == glfw.Press {
+		keys[0] = 1
+	}
+	if s.window.GetKey(glfw.Key2) == glfw.Press {
+		keys[1] = 1
+	}
+	if s.window.GetKey(glfw.Key3) == glfw.Press {
+		keys[2] = 1
+	}
+	if s.window.GetKey(glfw.Key4) == glfw.Press {
+		keys[3] = 1
+	}
+
+	if s.window.GetKey(glfw.KeyQ) == glfw.Press {
+		keys[4] = 1
+	}
+	if s.window.GetKey(glfw.KeyW) == glfw.Press {
+		keys[5] = 1
+	}
+	if s.window.GetKey(glfw.KeyE) == glfw.Press {
+		keys[6] = 1
+	}
+	if s.window.GetKey(glfw.KeyR) == glfw.Press {
+		keys[7] = 1
+	}
+
+	if s.window.GetKey(glfw.KeyA) == glfw.Press {
+		keys[8] = 1
+	}
+	if s.window.GetKey(glfw.KeyS) == glfw.Press {
+		keys[9] = 1
+	}
+	if s.window.GetKey(glfw.KeyD) == glfw.Press {
+		keys[10] = 1
+	}
+	if s.window.GetKey(glfw.KeyF) == glfw.Press {
+		keys[11] = 1
+	}
+
+	if s.window.GetKey(glfw.KeyZ) == glfw.Press {
+		keys[12] = 1
+	}
+	if s.window.GetKey(glfw.KeyX) == glfw.Press {
+		keys[13] = 1
+	}
+	if s.window.GetKey(glfw.KeyC) == glfw.Press {
+		keys[14] = 1
+	}
+	if s.window.GetKey(glfw.KeyV) == glfw.Press {
+		keys[15] = 1
+	}
+	return keys
+}
+
 type cell struct {
 	drawable uint32
 

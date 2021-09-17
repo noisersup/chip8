@@ -90,7 +90,8 @@ func main() {
 
 		go func() {
 			for {
-				ch8.EmulateCycle()
+				input := screen.GetKeys()
+				ch8.EmulateCycle(input)
 			}
 		}()
 		for !screen.ShouldClose() {
@@ -139,7 +140,7 @@ func NewApp(filepath string, screen *display.Screen, gfx chan []uint8) *app {
 
 	go func() {
 		for {
-			ch8.EmulateCycle()
+			ch8.EmulateCycle(screen.GetKeys())
 			//time.Sleep(50 * time.Millisecond)
 		}
 	}()
@@ -197,6 +198,18 @@ func (a *app) View() string {
 		currPc := a.ch8.Pc + (i * 2)
 		currOpcode := uint16(a.ch8.Memory[currPc])<<8 | uint16(a.ch8.Memory[currPc+1])
 		str += fmt.Sprintf(" | [%04x]: %#04x", currPc, currOpcode)
+		//Display
+		if i < 4 {
+			for j := 0; j < 4; j++ {
+				str += " ["
+				if a.ch8.GetKeys()[i*4+uint16(j)] > 0 {
+					str += "X"
+				} else {
+					str += " "
+				}
+				str += "]"
+			}
+		}
 	}
 
 	return str
