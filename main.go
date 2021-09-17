@@ -79,7 +79,6 @@ func main() {
 		go func() {
 			ch8.Initialize(fontset)
 		}()
-		screen.Draw(<-gfx)
 		ch8.LoadProgram("Space Invaders [David Winter].ch8")
 		//ch8.LoadProgram("test.ch8")
 		ch8.UpdDbg = func() {
@@ -94,6 +93,8 @@ func main() {
 				ch8.EmulateCycle(input)
 			}
 		}()
+
+		runtime.LockOSThread()
 		for !screen.ShouldClose() {
 			screen.Draw(<-gfx)
 		}

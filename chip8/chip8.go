@@ -60,12 +60,6 @@ func (ch8 *Chip8) Initialize(chip8Fontset []uint8) {
 	ch8.I = 0      //Reset index register
 	ch8.Sp = 0     //Reset stack pointer
 	rand.Seed(time.Now().UTC().UnixNano())
-	/*TODO:
-	- clear display
-	- clear stack
-	- clear registers V0-VF
-	- clear memory
-	*/
 
 	ch8.Gfx = make([]uint8, 64*32, 64*32)
 	ch8.display <- ch8.Gfx
@@ -73,7 +67,14 @@ func (ch8 *Chip8) Initialize(chip8Fontset []uint8) {
 	for i := 0; i < 80; i++ {
 		ch8.Memory[i] = chip8Fontset[i]
 	}
-	// TODO:Reset timers
+	go func() {
+		for {
+			if ch8.DelayTimer > 0 {
+				time.Sleep(10 * time.Millisecond)
+				ch8.DelayTimer--
+			}
+		}
+	}()
 }
 
 func (c *Chip8) LoadProgram(fileName string) error {
@@ -107,20 +108,12 @@ func (ch8 *Chip8) EmulateCycle(input [16]uint8) {
 	if ch8.DebugMode {
 		<-ch8.stepChan
 	}
-	if ch8.DelayTimer > 0 {
-		for {
-			time.Sleep(10 * time.Millisecond)
-			ch8.DelayTimer--
-			if ch8.DelayTimer <= 0 {
-				break
-			}
-		}
-	}
 	ch8.Tick++
 	ch8.keys = input
 	ch8.fetchOpcode()
 	ch8.decodeOpcode()
 	ch8.UpdDbg()
+	time.Sleep(10 * time.Millisecond)
 }
 
 func (ch8 *Chip8) fetchOpcode() {
@@ -164,7 +157,9 @@ func (ch8 *Chip8) decodeOpcode() {
 	case 0x0000:
 		switch ch8.Opcode & 0x000F { // Checks last byte
 		case 0x0000: // 0x00E0: clears the screen
-			//TODO
+			ch8.Gfx = make([]uint8, 64*32, 64*32)
+			ch8.display <- ch8.Gfx
+			ch8.Pc += 2
 			break
 		case 0x000E: // 0x00EE: Returns from subroutine
 			ch8.Pc = ch8.Stack[ch8.Sp]
