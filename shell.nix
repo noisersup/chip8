@@ -18,7 +18,8 @@ pkgs.mkShell{
 
         pkg-config
         libcap go gcc
- libGLU       libGL
+        libGL
+        libGLU 
         xorgLibs
     ];
 }
